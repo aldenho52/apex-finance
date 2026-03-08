@@ -10,20 +10,18 @@ import AlertsTab from "./components/alerts/AlertsTab";
 import AccountsTab from "./components/accounts/AccountsTab";
 import RentalTab from "./components/rental/RentalTab";
 import DebtTab from "./components/debt/DebtTab";
-import CashFlowTab from "./components/cashflow/CashFlowTab";
+import CashFlowHeader from "./components/cashflow/CashFlowHeader";
 import LearningTab from "./components/learning/LearningTab";
 import AiChat from "./components/chat/AiChat";
 import PlaidLinkButton from "./components/PlaidLink";
-import { useCashFlow } from "./hooks/useCashFlow";
 
-const TABS = ["alerts", "accounts", "cash flow", "debt", "rental", "learn"] as const;
+const TABS = ["alerts", "accounts", "debt", "rental", "learn"] as const;
 
 export default function Dashboard() {
   const { signOut } = useAuth();
   const navigate = useNavigate();
   const { accounts, netWorth, loading: accountsLoading, refresh: refreshAccounts } = useAccounts();
   const { alerts, criticalCount, acknowledgeAlert, refresh: refreshAlerts } = useAlerts();
-  const { data: cashFlowData } = useCashFlow();
   const [tab, setTab] = useState<string>("alerts");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [rental, setRental] = useState<any>(null);
@@ -98,21 +96,8 @@ export default function Dashboard() {
       </div>
 
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "24px" }}>
-        {/* Stats Row */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: spacing.cardGap, marginBottom: spacing.sectionGap }}>
-          {[
-            { label: "NET WORTH", value: `$${netWorth.toLocaleString()}`, sub: accounts.length ? `${accounts.length} accounts` : "connect bank", color: colors.positive },
-            { label: "MONTHLY INCOME", value: cashFlowData ? `$${cashFlowData.monthly_avg_income.toLocaleString("en-US", { minimumFractionDigits: 2 })}` : "—", sub: cashFlowData ? `$${cashFlowData.monthly_avg_expenses.toLocaleString("en-US", { minimumFractionDigits: 2 })} expenses` : "connect bank", color: colors.info },
-            { label: "TOTAL DEBT", value: `$${totalDebt.toLocaleString()}`, sub: "credit cards", color: colors.negative },
-            { label: "ACTIVE ALERTS", value: `${alerts.length}`, sub: criticalCount ? `${criticalCount} critical` : "none critical", color: colors.warning },
-          ].map(item => (
-            <div key={item.label} style={{ background: colors.cardBg, border: `1px solid ${colors.border}`, borderRadius: radius.card, padding: spacing.cardPadding }}>
-              <p style={{ color: colors.textTertiary, fontSize: fontSizes.caption, letterSpacing: "0.1em", marginBottom: 8, fontWeight: 600 }}>{item.label}</p>
-              <p style={{ fontFamily: fonts.body, fontSize: fontSizes.h2, fontWeight: 600, color: item.color, margin: 0, fontVariantNumeric: "tabular-nums" }}>{item.value}</p>
-              <p style={{ color: colors.textTertiary, fontSize: fontSizes.caption, marginTop: 4 }}>{item.sub}</p>
-            </div>
-          ))}
-        </div>
+        {/* Cash Flow Header */}
+        <CashFlowHeader netWorth={netWorth} accountCount={accounts.length} totalDebt={totalDebt} alertCount={alerts.length} criticalCount={criticalCount} />
 
         {/* Main Grid */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: spacing.cardGap }}>
@@ -131,7 +116,6 @@ export default function Dashboard() {
             <div style={{ background: colors.cardBg, border: `1px solid ${colors.border}`, borderRadius: radius.card, padding: spacing.cardPadding, minHeight: 400 }} className="fade-up" key={tab}>
               {tab === "alerts" && <AlertsTab alerts={alerts} onAcknowledge={acknowledgeAlert} />}
               {tab === "accounts" && <AccountsTab accounts={accounts} onBankConnected={handleBankConnected} />}
-              {tab === "cash flow" && <CashFlowTab />}
               {tab === "debt" && <DebtTab />}
               {tab === "rental" && <RentalTab rental={rental} />}
               {tab === "learn" && <LearningTab />}
