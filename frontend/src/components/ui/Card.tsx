@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
+import { colors, spacing, radius } from "../../lib/theme";
 
 interface CardProps {
   children: ReactNode;
@@ -11,10 +12,10 @@ export default function Card({ children, style, className }: CardProps) {
     <div
       className={className}
       style={{
-        background: "#0d0f14",
-        border: "1px solid #111827",
-        borderRadius: 12,
-        padding: 16,
+        background: colors.cardBg,
+        border: `1px solid ${colors.border}`,
+        borderRadius: radius.card,
+        padding: spacing.cardPadding,
         ...style,
       }}
     >

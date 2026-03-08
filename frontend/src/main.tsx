@@ -3,8 +3,10 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import "./index.css";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { colors, fonts, fontSizes } from "./lib/theme";
 import Login from "./pages/Login";
 import Settings from "./pages/Settings";
+import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./Dashboard";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -13,14 +15,14 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return (
       <div
         style={{
-          background: "#08090d",
+          background: colors.pageBg,
           minHeight: "100vh",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          color: "#374151",
-          fontFamily: "'DM Mono', monospace",
-          fontSize: 13,
+          color: colors.textTertiary,
+          fontFamily: fonts.body,
+          fontSize: fontSizes.body,
         }}
       >
         Loading...
@@ -40,6 +42,7 @@ function AppRoutes() {
         path="/login"
         element={user ? <Navigate to="/" /> : <Login />}
       />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route
         path="/"
         element={

@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { usePlaidLink } from "react-plaid-link";
 import { createPlaidLinkToken, exchangePlaidToken, triggerSync } from "../lib/api";
+import { colors, fonts, fontSizes, radius } from "../lib/theme";
 
 interface PlaidLinkButtonProps {
   onSuccess?: () => void;
@@ -26,7 +27,6 @@ export default function PlaidLinkButton({ onSuccess }: PlaidLinkButtonProps) {
       try {
         await exchangePlaidToken(publicToken);
         await triggerSync();
-        // Background sync needs a moment to write accounts to DB
         await new Promise((r) => setTimeout(r, 3000));
         onSuccess?.();
       } catch (e) {
@@ -41,7 +41,6 @@ export default function PlaidLinkButton({ onSuccess }: PlaidLinkButtonProps) {
     onSuccess: onPlaidSuccess,
   });
 
-  // Auto-open Plaid Link as soon as the SDK is ready
   useEffect(() => {
     if (ready && linkToken) {
       open();
@@ -53,16 +52,16 @@ export default function PlaidLinkButton({ onSuccess }: PlaidLinkButtonProps) {
       onClick={linkToken && ready ? () => open() : fetchToken}
       disabled={loading}
       style={{
-        background: "rgba(34,197,94,0.1)",
-        border: "1px solid rgba(34,197,94,0.3)",
-        borderRadius: 8,
+        background: colors.positiveBg,
+        border: `1px solid ${colors.positiveBorder}`,
+        borderRadius: radius.button,
         padding: "10px 16px",
-        color: "#4ade80",
-        fontSize: 12,
-        fontWeight: 700,
+        color: colors.positive,
+        fontSize: fontSizes.small,
+        fontWeight: 600,
         cursor: loading ? "wait" : "pointer",
-        fontFamily: "inherit",
-        letterSpacing: "0.05em",
+        fontFamily: fonts.body,
+        letterSpacing: "0.04em",
       }}
     >
       {loading ? "..." : "+ Connect Bank"}

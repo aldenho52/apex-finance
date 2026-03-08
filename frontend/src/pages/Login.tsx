@@ -1,19 +1,59 @@
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
+import { colors, fonts, fontSizes, radius } from "../lib/theme";
+
+const inputStyle = {
+  width: "100%",
+  background: colors.elevatedBg,
+  border: `1px solid ${colors.border}`,
+  borderRadius: radius.input,
+  padding: "12px 14px",
+  color: colors.textPrimary,
+  fontSize: fontSizes.body,
+  fontFamily: fonts.body,
+  outline: "none",
+} as const;
+
+const primaryButton = {
+  width: "100%",
+  background: "#1d6b45",
+  border: "none",
+  borderRadius: radius.button,
+  padding: "12px",
+  color: "white",
+  fontSize: fontSizes.body,
+  fontWeight: 600,
+  cursor: "pointer",
+  fontFamily: fonts.body,
+} as const;
 
 export default function Login() {
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, resetPassword } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
+  const [forgotPassword, setForgotPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [confirmEmail, setConfirmEmail] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
+
+    if (forgotPassword) {
+      const { error } = await resetPassword(email);
+      if (error) {
+        setError(error.message);
+      } else {
+        setResetSent(true);
+      }
+      setLoading(false);
+      return;
+    }
 
     if (isSignUp) {
       const { error } = await signUp(email, password);
@@ -34,24 +74,18 @@ export default function Login() {
   return (
     <div
       style={{
-        fontFamily: "'DM Mono', 'Courier New', monospace",
-        background: "#08090d",
+        fontFamily: fonts.body,
+        background: colors.pageBg,
         minHeight: "100vh",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
       }}
     >
-      <style>
-        {`@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@700;800&display=swap');
-        * { box-sizing: border-box; }
-        input::placeholder { color: #374151; }`}
-      </style>
-
       <div
         style={{
-          background: "#0d0f14",
-          border: "1px solid #111827",
+          background: colors.cardBg,
+          border: `1px solid ${colors.border}`,
           borderRadius: 16,
           padding: 40,
           width: 380,
@@ -72,36 +106,87 @@ export default function Login() {
                 width: 8,
                 height: 8,
                 borderRadius: "50%",
-                background: "#22c55e",
-                boxShadow: "0 0 8px #22c55e",
+                background: colors.brand,
+                boxShadow: colors.brandGlow,
               }}
             />
             <span
               style={{
-                fontFamily: "'Syne', sans-serif",
+                fontFamily: fonts.brand,
                 fontWeight: 800,
                 fontSize: 20,
                 letterSpacing: "0.2em",
-                color: "white",
+                color: colors.textPrimary,
               }}
             >
               APEX
             </span>
           </div>
-          <p style={{ color: "#374151", fontSize: 11, margin: 0 }}>
+          <p style={{ color: colors.textTertiary, fontSize: fontSizes.caption, margin: 0 }}>
             FINANCE + HEALTH OS
           </p>
         </div>
 
-        {confirmEmail ? (
+        {resetSent ? (
           <div style={{ textAlign: "center" }}>
             <div
               style={{
                 width: 48,
                 height: 48,
                 borderRadius: "50%",
-                background: "rgba(34, 197, 94, 0.1)",
-                border: "1px solid rgba(34, 197, 94, 0.2)",
+                background: colors.infoBg,
+                border: `1px solid ${colors.infoBorder}`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                margin: "0 auto 16px",
+                fontSize: 20,
+                color: colors.info,
+              }}
+            >
+              ✉
+            </div>
+            <p
+              style={{
+                color: colors.textPrimary,
+                fontSize: fontSizes.h3,
+                fontWeight: 500,
+                margin: "0 0 8px",
+              }}
+            >
+              Reset link sent
+            </p>
+            <p
+              style={{
+                color: colors.textTertiary,
+                fontSize: fontSizes.small,
+                margin: "0 0 20px",
+                lineHeight: 1.5,
+              }}
+            >
+              Check <span style={{ color: colors.textSecondary }}>{email}</span> for a
+              password reset link.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setResetSent(false);
+                setForgotPassword(false);
+              }}
+              style={primaryButton}
+            >
+              Back to Sign In
+            </button>
+          </div>
+        ) : confirmEmail ? (
+          <div style={{ textAlign: "center" }}>
+            <div
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: "50%",
+                background: colors.positiveBg,
+                border: `1px solid ${colors.positiveBorder}`,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -113,8 +198,8 @@ export default function Login() {
             </div>
             <p
               style={{
-                color: "#e5e7eb",
-                fontSize: 14,
+                color: colors.textPrimary,
+                fontSize: fontSizes.h3,
                 fontWeight: 500,
                 margin: "0 0 8px",
               }}
@@ -123,13 +208,13 @@ export default function Login() {
             </p>
             <p
               style={{
-                color: "#6b7280",
-                fontSize: 12,
+                color: colors.textTertiary,
+                fontSize: fontSizes.small,
                 margin: "0 0 20px",
                 lineHeight: 1.5,
               }}
             >
-              Check <span style={{ color: "#9ca3af" }}>{email}</span> for a
+              Check <span style={{ color: colors.textSecondary }}>{email}</span> for a
               confirmation link, then sign in.
             </p>
             <button
@@ -138,24 +223,18 @@ export default function Login() {
                 setConfirmEmail(false);
                 setIsSignUp(false);
               }}
-              style={{
-                width: "100%",
-                background: "#1d4ed8",
-                border: "none",
-                borderRadius: 8,
-                padding: "12px",
-                color: "white",
-                fontSize: 13,
-                fontWeight: 700,
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
+              style={primaryButton}
             >
               Back to Sign In
             </button>
           </div>
         ) : (
         <>
+        {forgotPassword && (
+          <p style={{ color: colors.textTertiary, fontSize: fontSizes.small, textAlign: "center", marginBottom: 16, lineHeight: 1.5 }}>
+            Enter your email and we'll send you a secure link to reset your password.
+          </p>
+        )}
         <form onSubmit={handleSubmit}>
           <input
             type="email"
@@ -164,44 +243,52 @@ export default function Login() {
             onChange={(e) => setEmail(e.target.value)}
             required
             style={{
-              width: "100%",
-              background: "rgba(255,255,255,0.03)",
-              border: "1px solid #1a1f2e",
-              borderRadius: 8,
-              padding: "12px 14px",
-              color: "white",
-              fontSize: 13,
-              fontFamily: "inherit",
-              outline: "none",
-              marginBottom: 12,
+              ...inputStyle,
+              marginBottom: forgotPassword ? 16 : 12,
             }}
           />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={6}
-            style={{
-              width: "100%",
-              background: "rgba(255,255,255,0.03)",
-              border: "1px solid #1a1f2e",
-              borderRadius: 8,
-              padding: "12px 14px",
-              color: "white",
-              fontSize: 13,
-              fontFamily: "inherit",
-              outline: "none",
-              marginBottom: 16,
-            }}
-          />
+          {!forgotPassword && (
+            <div style={{ position: "relative", marginBottom: 16 }}>
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={6}
+                style={{
+                  ...inputStyle,
+                  paddingRight: 40,
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{
+                  position: "absolute",
+                  right: 12,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: colors.textTertiary,
+                  fontSize: 16,
+                  padding: 0,
+                  lineHeight: 1,
+                }}
+                tabIndex={-1}
+              >
+                {showPassword ? "◡" : "⊙"}
+              </button>
+            </div>
+          )}
 
           {error && (
             <p
               style={{
-                color: "#ef4444",
-                fontSize: 12,
+                color: colors.negative,
+                fontSize: fontSizes.small,
                 marginBottom: 12,
                 textAlign: "center",
               }}
@@ -214,50 +301,78 @@ export default function Login() {
             type="submit"
             disabled={loading}
             style={{
-              width: "100%",
-              background: "#1d4ed8",
-              border: "none",
-              borderRadius: 8,
-              padding: "12px",
-              color: "white",
-              fontSize: 13,
-              fontWeight: 700,
+              ...primaryButton,
               cursor: loading ? "wait" : "pointer",
-              fontFamily: "inherit",
               opacity: loading ? 0.6 : 1,
             }}
           >
-            {loading ? "..." : isSignUp ? "Create Account" : "Sign In"}
+            {loading ? "..." : forgotPassword ? "Send Reset Link" : isSignUp ? "Create Account" : "Sign In"}
           </button>
         </form>
+
+        {!forgotPassword && !isSignUp && (
+          <p style={{ textAlign: "center", marginTop: 12 }}>
+            <button
+              type="button"
+              onClick={() => { setForgotPassword(true); setError(""); }}
+              style={{
+                background: "none",
+                border: "none",
+                color: colors.textTertiary,
+                cursor: "pointer",
+                fontFamily: fonts.body,
+                fontSize: fontSizes.caption,
+              }}
+            >
+              Forgot password?
+            </button>
+          </p>
+        )}
 
         <p
           style={{
             textAlign: "center",
-            marginTop: 16,
-            color: "#4b5563",
-            fontSize: 12,
+            marginTop: forgotPassword ? 16 : 8,
+            color: colors.textTertiary,
+            fontSize: fontSizes.small,
           }}
         >
-          {isSignUp ? "Already have an account?" : "Need an account?"}{" "}
-          <button
-            type="button"
-            onClick={() => {
-              setIsSignUp(!isSignUp);
-              setError("");
-            }}
-            style={{
-              background: "none",
-              border: "none",
-              color: "#60a5fa",
-              cursor: "pointer",
-              fontFamily: "inherit",
-              fontSize: 12,
-              textDecoration: "underline",
-            }}
-          >
-            {isSignUp ? "Sign In" : "Sign Up"}
-          </button>
+          {forgotPassword ? (
+            <button
+              type="button"
+              onClick={() => { setForgotPassword(false); setError(""); }}
+              style={{
+                background: "none",
+                border: "none",
+                color: colors.link,
+                cursor: "pointer",
+                fontFamily: fonts.body,
+                fontSize: fontSizes.small,
+                textDecoration: "underline",
+              }}
+            >
+              Back to Sign In
+            </button>
+          ) : (
+            <>
+              {isSignUp ? "Already have an account?" : "Need an account?"}{" "}
+              <button
+                type="button"
+                onClick={() => { setIsSignUp(!isSignUp); setError(""); }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: colors.link,
+                  cursor: "pointer",
+                  fontFamily: fonts.body,
+                  fontSize: fontSizes.small,
+                  textDecoration: "underline",
+                }}
+              >
+                {isSignUp ? "Sign In" : "Sign Up"}
+              </button>
+            </>
+          )}
         </p>
         </>
         )}

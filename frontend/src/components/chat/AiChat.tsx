@@ -1,27 +1,29 @@
 import StatusDot from "../ui/StatusDot";
 import { useChat } from "../../hooks/useChat";
+import { colors, fonts, fontSizes, radius } from "../../lib/theme";
 
 export default function AiChat() {
   const { messages, chatInput, setChatInput, chatLoading, sendMessage, messagesEndRef } = useChat();
 
   return (
-    <div style={{ background: "#0d0f14", border: "1px solid #111827", borderRadius: 12, padding: 14, display: "flex", flexDirection: "column", height: 400 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, paddingBottom: 10, borderBottom: "1px solid #111827", marginBottom: 10 }}>
-        <StatusDot color="#22c55e" pulse />
-        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", color: "white" }}>APEX AI</span>
-        <span style={{ color: "#6b7280", fontSize: 10 }}>· always online</span>
+    <div style={{ background: colors.cardBg, border: `1px solid ${colors.border}`, borderRadius: radius.card, padding: 16, display: "flex", flexDirection: "column", height: 400 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, paddingBottom: 10, borderBottom: `1px solid ${colors.border}`, marginBottom: 10 }}>
+        <StatusDot color={colors.brand} pulse />
+        <span style={{ fontSize: fontSizes.caption, fontWeight: 700, letterSpacing: "0.1em", color: colors.textPrimary }}>APEX AI</span>
+        <span style={{ color: colors.textTertiary, fontSize: fontSizes.caption }}>· always online</span>
       </div>
       <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 }}>
         {messages.length === 0 && (
-          <p style={{ color: "#9ca3af", fontSize: 11, textAlign: "center", padding: 20 }}>Ask APEX anything about your finances.</p>
+          <p style={{ color: colors.textSecondary, fontSize: fontSizes.small, textAlign: "center", padding: 20 }}>Ask APEX anything about your finances.</p>
         )}
         {messages.map((msg, i) => (
           <div key={i} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }} className="fade-up">
             <div style={{
-              maxWidth: "88%", padding: "8px 11px", borderRadius: 9, fontSize: 11.5, lineHeight: 1.55,
-              background: msg.role === "user" ? "rgba(59,130,246,0.12)" : "rgba(255,255,255,0.03)",
-              border: `1px solid ${msg.role === "user" ? "rgba(59,130,246,0.25)" : "#1a1f2e"}`,
-              color: msg.role === "user" ? "#93c5fd" : "#d1d5db",
+              maxWidth: "88%", padding: "9px 12px", borderRadius: 10, fontSize: fontSizes.small, lineHeight: 1.6,
+              fontFamily: msg.role === "user" ? fonts.body : fonts.mono,
+              background: msg.role === "user" ? colors.infoBg : colors.elevatedBg,
+              border: `1px solid ${msg.role === "user" ? colors.infoBorder : colors.border}`,
+              color: msg.role === "user" ? colors.info : colors.textSecondary,
             }}>
               {msg.text}
             </div>
@@ -29,8 +31,8 @@ export default function AiChat() {
         ))}
         {chatLoading && (
           <div style={{ display: "flex", justifyContent: "flex-start" }}>
-            <div style={{ padding: "8px 14px", background: "rgba(255,255,255,0.03)", border: "1px solid #1a1f2e", borderRadius: 9 }}>
-              <span style={{ color: "#9ca3af", fontSize: 14 }}>···</span>
+            <div style={{ padding: "9px 14px", background: colors.elevatedBg, border: `1px solid ${colors.border}`, borderRadius: 10 }}>
+              <span style={{ color: colors.textTertiary, fontSize: fontSizes.h3 }}>···</span>
             </div>
           </div>
         )}
@@ -42,9 +44,9 @@ export default function AiChat() {
           onChange={e => setChatInput(e.target.value)}
           onKeyDown={e => e.key === "Enter" && sendMessage()}
           placeholder="Ask about your finances..."
-          style={{ flex: 1, background: "rgba(255,255,255,0.03)", border: "1px solid #1a1f2e", borderRadius: 7, padding: "8px 11px", color: "white", fontSize: 12, outline: "none", fontFamily: "inherit" }}
+          style={{ flex: 1, background: colors.elevatedBg, border: `1px solid ${colors.border}`, borderRadius: radius.button, padding: "9px 12px", color: colors.textPrimary, fontSize: fontSizes.small, outline: "none", fontFamily: fonts.body }}
         />
-        <button onClick={sendMessage} style={{ background: "#1d4ed8", border: "none", borderRadius: 7, padding: "8px 13px", color: "white", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>→</button>
+        <button onClick={sendMessage} style={{ background: "#1d6b45", border: "none", borderRadius: radius.button, padding: "9px 14px", color: "white", fontSize: fontSizes.body, fontWeight: 700, cursor: "pointer", fontFamily: fonts.body }}>→</button>
       </div>
     </div>
   );

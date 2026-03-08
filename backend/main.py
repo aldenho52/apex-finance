@@ -48,6 +48,7 @@ from compensation.salary_tracker import (
     get_progress_stages,
     TARGET_SALARY,
 )
+from cashflow.cash_flow import get_cash_flow_summary
 
 logger = logging.getLogger(__name__)
 
@@ -264,6 +265,22 @@ async def get_accounts(
         for a in accounts
     )
     return {"accounts": accounts, "net_worth": round(net_worth, 2)}
+
+
+# ─── Cash Flow Routes ────────────────────────────────────────────────────────
+
+VALID_PERIODS = {"monthly", "3months", "6months", "ytd", "1year", "2years", "3years"}
+
+
+@app.get("/api/cash-flow")
+async def get_cash_flow(
+    period: str = "monthly",
+    user_id: str = Depends(get_current_user),
+    sb=Depends(get_supabase),
+):
+    if period not in VALID_PERIODS:
+        raise HTTPException(400, f"Invalid period. Must be one of: {', '.join(sorted(VALID_PERIODS))}")
+    return await get_cash_flow_summary(user_id, period, sb)
 
 
 # ─── Alert Routes ─────────────────────────────────────────────────────────────

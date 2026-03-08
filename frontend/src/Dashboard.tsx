@@ -1,26 +1,29 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "./contexts/AuthContext";
 import { useAccounts } from "./hooks/useAccounts";
 import { useAlerts } from "./hooks/useAlerts";
 import { fetchRentalSummary } from "./lib/api";
+import { colors, fonts, fontSizes, spacing, radius } from "./lib/theme";
 import StatusDot from "./components/ui/StatusDot";
 import AlertsTab from "./components/alerts/AlertsTab";
 import AccountsTab from "./components/accounts/AccountsTab";
 import RentalTab from "./components/rental/RentalTab";
 import DebtTab from "./components/debt/DebtTab";
+import CashFlowTab from "./components/cashflow/CashFlowTab";
 import LearningTab from "./components/learning/LearningTab";
 import AiChat from "./components/chat/AiChat";
 import PlaidLinkButton from "./components/PlaidLink";
-import { useEffect } from "react";
+import { useCashFlow } from "./hooks/useCashFlow";
 
-const TABS = ["alerts", "accounts", "debt", "rental", "learn"] as const;
+const TABS = ["alerts", "accounts", "cash flow", "debt", "rental", "learn"] as const;
 
 export default function Dashboard() {
   const { signOut } = useAuth();
   const navigate = useNavigate();
   const { accounts, netWorth, loading: accountsLoading, refresh: refreshAccounts } = useAccounts();
   const { alerts, criticalCount, acknowledgeAlert, refresh: refreshAlerts } = useAlerts();
+  const { data: cashFlowData } = useCashFlow();
   const [tab, setTab] = useState<string>("alerts");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [rental, setRental] = useState<any>(null);
@@ -41,87 +44,82 @@ export default function Dashboard() {
     .reduce((s, a) => s + Math.abs(a.balance_current || 0), 0);
 
   const tabStyle = (t: string) => ({
-    padding: "7px 16px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer" as const, letterSpacing: "0.05em",
-    background: tab === t ? "rgba(59,130,246,0.15)" : "transparent",
-    border: tab === t ? "1px solid rgba(59,130,246,0.4)" : "1px solid transparent",
-    color: tab === t ? "#93c5fd" : "#9ca3af",
-    fontFamily: "inherit",
+    padding: "10px 20px",
+    borderRadius: radius.button,
+    fontSize: fontSizes.small,
+    fontWeight: 600 as const,
+    cursor: "pointer" as const,
+    letterSpacing: "0.04em",
+    background: tab === t ? colors.elevatedBg : "transparent",
+    border: tab === t ? `1px solid ${colors.border}` : "1px solid transparent",
+    color: tab === t ? colors.textPrimary : colors.textTertiary,
+    fontFamily: fonts.body,
+    transition: "all 0.15s ease",
   });
 
   if (accountsLoading) {
     return (
-      <div style={{ fontFamily: "'DM Mono', monospace", background: "#08090d", minHeight: "100vh", color: "#9ca3af", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>
+      <div style={{ fontFamily: fonts.body, background: colors.pageBg, minHeight: "100vh", color: colors.textTertiary, display: "flex", alignItems: "center", justifyContent: "center", fontSize: fontSizes.body }}>
         Loading your data...
       </div>
     );
   }
 
   return (
-    <div style={{ fontFamily: "'DM Mono', 'Courier New', monospace", background: "#08090d", minHeight: "100vh", color: "white" }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Syne:wght@700;800&display=swap');
-        * { box-sizing: border-box; }
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
-        @keyframes fadeUp { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
-        .fade-up { animation: fadeUp 0.25s ease forwards; }
-        ::-webkit-scrollbar{width:3px} ::-webkit-scrollbar-track{background:transparent} ::-webkit-scrollbar-thumb{background:#1f2937;border-radius:2px}
-        input::placeholder{color:#6b7280}
-        button:hover{opacity:0.8!important}
-      `}</style>
-
+    <div style={{ fontFamily: fonts.body, background: colors.pageBg, minHeight: "100vh", color: colors.textPrimary }}>
       {/* Header */}
-      <div style={{ borderBottom: "1px solid #111827", background: "#08090d", position: "sticky", top: 0, zIndex: 50, padding: "0 20px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 52 }}>
+      <div style={{ borderBottom: `1px solid ${colors.border}`, background: colors.pageBg, position: "sticky", top: 0, zIndex: 50, padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 56 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <StatusDot color="#22c55e" pulse />
-          <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 15, letterSpacing: "0.2em" }}>APEX</span>
-          <span style={{ color: "#6b7280", fontSize: 11 }}>/ FINANCE</span>
+          <StatusDot color={colors.brand} pulse />
+          <span style={{ fontFamily: fonts.brand, fontWeight: 800, fontSize: 16, letterSpacing: "0.2em" }}>APEX</span>
+          <span style={{ color: colors.textTertiary, fontSize: fontSizes.caption, fontWeight: 500 }}>/ FINANCE</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           {criticalCount > 0 && (
-            <div style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)", borderRadius: 20, padding: "4px 10px" }}>
-              <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#ef4444", animation: "pulse 1.5s infinite" }} />
-              <span style={{ color: "#fca5a5", fontSize: 10, fontWeight: 700 }}>{criticalCount} CRITICAL</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, background: colors.negativeBg, border: `1px solid ${colors.negativeBorder}`, borderRadius: radius.badge, padding: "5px 12px" }}>
+              <div style={{ width: 6, height: 6, borderRadius: "50%", background: colors.negative, animation: "pulse 1.5s infinite" }} />
+              <span style={{ color: colors.negative, fontSize: fontSizes.caption, fontWeight: 600 }}>{criticalCount} CRITICAL</span>
             </div>
           )}
-          <span style={{ color: "#6b7280", fontSize: 10 }}>Updated {lastUpdated || "—"}</span>
+          <span style={{ color: colors.textTertiary, fontSize: fontSizes.caption }}>Updated {lastUpdated || "—"}</span>
           <button
             onClick={() => navigate("/settings")}
-            style={{ background: "transparent", border: "1px solid #1f2937", borderRadius: 6, padding: "4px 10px", color: "#9ca3af", fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+            style={{ background: "transparent", border: `1px solid ${colors.border}`, borderRadius: radius.button, padding: "5px 12px", color: colors.textSecondary, fontSize: fontSizes.caption, fontWeight: 600, cursor: "pointer", fontFamily: fonts.body }}
           >
             Settings
           </button>
           <button
             onClick={signOut}
-            style={{ background: "transparent", border: "1px solid #1f2937", borderRadius: 6, padding: "4px 10px", color: "#9ca3af", fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+            style={{ background: "transparent", border: `1px solid ${colors.border}`, borderRadius: radius.button, padding: "5px 12px", color: colors.textSecondary, fontSize: fontSizes.caption, fontWeight: 600, cursor: "pointer", fontFamily: fonts.body }}
           >
             Sign Out
           </button>
         </div>
       </div>
 
-      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "20px" }}>
+      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "24px" }}>
         {/* Stats Row */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 20 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: spacing.cardGap, marginBottom: spacing.sectionGap }}>
           {[
-            { label: "NET WORTH", value: `$${netWorth.toLocaleString()}`, sub: accounts.length ? `${accounts.length} accounts` : "connect bank", color: "#22c55e" },
-            { label: "MONTHLY INCOME", value: "—", sub: "connect bank", color: "#60a5fa" },
-            { label: "TOTAL DEBT", value: `$${totalDebt.toLocaleString()}`, sub: "credit cards", color: "#f87171" },
-            { label: "ACTIVE ALERTS", value: `${alerts.length}`, sub: criticalCount ? `${criticalCount} critical` : "none critical", color: "#a78bfa" },
+            { label: "NET WORTH", value: `$${netWorth.toLocaleString()}`, sub: accounts.length ? `${accounts.length} accounts` : "connect bank", color: colors.positive },
+            { label: "MONTHLY INCOME", value: cashFlowData ? `$${cashFlowData.monthly_avg_income.toLocaleString("en-US", { minimumFractionDigits: 2 })}` : "—", sub: cashFlowData ? `$${cashFlowData.monthly_avg_expenses.toLocaleString("en-US", { minimumFractionDigits: 2 })} expenses` : "connect bank", color: colors.info },
+            { label: "TOTAL DEBT", value: `$${totalDebt.toLocaleString()}`, sub: "credit cards", color: colors.negative },
+            { label: "ACTIVE ALERTS", value: `${alerts.length}`, sub: criticalCount ? `${criticalCount} critical` : "none critical", color: colors.warning },
           ].map(item => (
-            <div key={item.label} style={{ background: "#0d0f14", border: "1px solid #111827", borderRadius: 10, padding: "14px" }}>
-              <p style={{ color: "#9ca3af", fontSize: 9, letterSpacing: "0.12em", marginBottom: 6, fontWeight: 700 }}>{item.label}</p>
-              <p style={{ fontFamily: "'Syne', sans-serif", fontSize: 18, fontWeight: 800, color: item.color, margin: 0 }}>{item.value}</p>
-              <p style={{ color: "#6b7280", fontSize: 10, marginTop: 3 }}>{item.sub}</p>
+            <div key={item.label} style={{ background: colors.cardBg, border: `1px solid ${colors.border}`, borderRadius: radius.card, padding: spacing.cardPadding }}>
+              <p style={{ color: colors.textTertiary, fontSize: fontSizes.caption, letterSpacing: "0.1em", marginBottom: 8, fontWeight: 600 }}>{item.label}</p>
+              <p style={{ fontFamily: fonts.body, fontSize: fontSizes.h2, fontWeight: 600, color: item.color, margin: 0, fontVariantNumeric: "tabular-nums" }}>{item.value}</p>
+              <p style={{ color: colors.textTertiary, fontSize: fontSizes.caption, marginTop: 4 }}>{item.sub}</p>
             </div>
           ))}
         </div>
 
         {/* Main Grid */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: spacing.cardGap }}>
           {/* Left */}
           <div>
             {/* Tabs */}
-            <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+            <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
               {TABS.map(t => (
                 <button key={t} style={tabStyle(t)} onClick={() => setTab(t)}>
                   {t.toUpperCase()}{t === "alerts" && criticalCount > 0 ? ` (${criticalCount})` : ""}
@@ -130,9 +128,10 @@ export default function Dashboard() {
             </div>
 
             {/* Tab Content */}
-            <div style={{ background: "#0d0f14", border: "1px solid #111827", borderRadius: 12, padding: 16, minHeight: 400 }} className="fade-up" key={tab}>
+            <div style={{ background: colors.cardBg, border: `1px solid ${colors.border}`, borderRadius: radius.card, padding: spacing.cardPadding, minHeight: 400 }} className="fade-up" key={tab}>
               {tab === "alerts" && <AlertsTab alerts={alerts} onAcknowledge={acknowledgeAlert} />}
               {tab === "accounts" && <AccountsTab accounts={accounts} onBankConnected={handleBankConnected} />}
+              {tab === "cash flow" && <CashFlowTab />}
               {tab === "debt" && <DebtTab />}
               {tab === "rental" && <RentalTab rental={rental} />}
               {tab === "learn" && <LearningTab />}
@@ -143,9 +142,9 @@ export default function Dashboard() {
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <AiChat />
             {accounts.length === 0 && (
-              <div style={{ background: "rgba(59,130,246,0.05)", border: "1px solid rgba(59,130,246,0.15)", borderRadius: 12, padding: 14, textAlign: "center" }}>
-                <p style={{ margin: "0 0 10px", color: "#93c5fd", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em" }}>GET STARTED</p>
-                <p style={{ margin: "0 0 14px", color: "#d1d5db", fontSize: 12, lineHeight: 1.5 }}>Connect your bank account to unlock alerts, balance tracking, and AI-powered financial insights.</p>
+              <div style={{ background: colors.infoBg, border: `1px solid ${colors.infoBorder}`, borderRadius: radius.card, padding: spacing.cardPadding, textAlign: "center" }}>
+                <p style={{ margin: "0 0 10px", color: colors.info, fontSize: fontSizes.caption, fontWeight: 600, letterSpacing: "0.1em" }}>GET STARTED</p>
+                <p style={{ margin: "0 0 14px", color: colors.textSecondary, fontSize: fontSizes.small, lineHeight: 1.6 }}>Connect your bank account to unlock alerts, balance tracking, and AI-powered financial insights.</p>
                 <PlaidLinkButton onSuccess={handleBankConnected} />
               </div>
             )}

@@ -3,11 +3,11 @@ import DebtOverview from "./DebtOverview";
 import PayoffCalculator from "./PayoffCalculator";
 import BalanceTransferSection from "./BalanceTransferSection";
 import { useDebtData } from "../../hooks/useDebtData";
+import { colors, fontSizes } from "../../lib/theme";
 
 export default function DebtTab() {
   const { overview, payoffResult, balanceTransfer, extraPayment, loading, calculating, recalculate } = useDebtData();
 
-  // Auto-calculate on first load if we have debt
   useEffect(() => {
     if (overview && overview.debts.length > 0 && !payoffResult) {
       recalculate(extraPayment);
@@ -15,14 +15,14 @@ export default function DebtTab() {
   }, [overview, payoffResult, recalculate, extraPayment]);
 
   if (loading) {
-    return <p style={{ color: "#9ca3af", fontSize: 12, textAlign: "center", padding: 40 }}>Loading debt data...</p>;
+    return <p style={{ color: colors.textSecondary, fontSize: fontSizes.small, textAlign: "center", padding: 40 }}>Loading debt data...</p>;
   }
 
   if (!overview || overview.debts.length === 0) {
     return (
       <div style={{ textAlign: "center", padding: 40 }}>
-        <p style={{ color: "#9ca3af", fontSize: 12, marginBottom: 8 }}>No credit card debt found.</p>
-        <p style={{ color: "#6b7280", fontSize: 11 }}>Connect a bank account with credit cards to use the debt manager.</p>
+        <p style={{ color: colors.textSecondary, fontSize: fontSizes.small, marginBottom: 8 }}>No credit card debt found.</p>
+        <p style={{ color: colors.textTertiary, fontSize: fontSizes.caption }}>Connect a bank account with credit cards to use the debt manager.</p>
       </div>
     );
   }
@@ -30,8 +30,8 @@ export default function DebtTab() {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-        <h3 style={{ margin: 0, fontSize: 12, fontWeight: 700, letterSpacing: "0.1em", color: "white" }}>DEBT MANAGER</h3>
-        <span style={{ color: "#9ca3af", fontSize: 11 }}>{overview.debts.length} cards</span>
+        <h3 style={{ margin: 0, fontSize: fontSizes.small, fontWeight: 700, letterSpacing: "0.1em", color: colors.textPrimary }}>DEBT MANAGER</h3>
+        <span style={{ color: colors.textTertiary, fontSize: fontSizes.caption }}>{overview.debts.length} cards</span>
       </div>
 
       <DebtOverview overview={overview} />

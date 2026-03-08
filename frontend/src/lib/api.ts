@@ -132,6 +132,10 @@ export const updateEmailPreferences = (prefs: {
 export const previewDigest = () =>
   authFetch("/api/settings/email-preview", { method: "POST" });
 
+// Cash Flow
+export const fetchCashFlow = (period: string = "monthly") =>
+  authFetch(`/api/cash-flow?period=${period}`);
+
 // Learning
 export const fetchTodaysArticle = () => authFetch("/api/learning/today");
 

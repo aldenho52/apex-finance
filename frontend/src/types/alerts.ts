@@ -21,7 +21,7 @@ export interface SeverityStyle {
 }
 
 export const SEVERITY_STYLES: Record<AlertSeverity, SeverityStyle> = {
-  critical: { bg: "#1a0505", border: "#7f1d1d", dot: "#ef4444", text: "#fca5a5", badge: "URGENT" },
-  warning: { bg: "#1a1205", border: "#78350f", dot: "#f59e0b", text: "#fcd34d", badge: "WARNING" },
-  info: { bg: "#030f1f", border: "#1e3a5f", dot: "#60a5fa", text: "#93c5fd", badge: "INFO" },
+  critical: { bg: "rgba(248, 113, 113, 0.06)", border: "rgba(248, 113, 113, 0.2)", dot: "#f87171", text: "#fca5a5", badge: "URGENT" },
+  warning: { bg: "rgba(251, 191, 36, 0.06)", border: "rgba(251, 191, 36, 0.2)", dot: "#fbbf24", text: "#fcd34d", badge: "WARNING" },
+  info: { bg: "rgba(96, 165, 250, 0.06)", border: "rgba(96, 165, 250, 0.2)", dot: "#60a5fa", text: "#93c5fd", badge: "INFO" },
 };
