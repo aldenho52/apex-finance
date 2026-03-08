@@ -1,0 +1,12 @@
+{
+  "name": "apex-finance",
+  "private": true,
+  "scripts": {
+    "install:all": "cd backend && pip install -r requirements.txt && cd ../frontend && bun install",
+    "backend": "cd backend && uvicorn main:app --reload --port 8000",
+    "frontend": "cd frontend && bun run dev",
+    "dev": "trap 'kill 0' INT; (cd backend && uvicorn main:app --reload --port 8000) 2>&1 | sed 's/^/[backend]  /' & (cd frontend && bun run dev) 2>&1 | sed 's/^/[frontend] /' & wait",
+    "lint": "cd frontend && bun run lint && bun run check",
+    "test": "cd frontend && bun run test"
+  }
+}

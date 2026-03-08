@@ -1,59 +1,57 @@
 """
 APEX - Rental Property Intelligence Module
 Real P&L, market data, sell vs. hold modeling, tax optimization alerts.
-Connects to Rentcast for market rent estimates and Zillow for valuations.
 """
 
 import os
 import httpx
 import logging
 from datetime import datetime, timedelta
-from typing import Optional
-from motor.motor_asyncio import AsyncIOMotorClient
+from supabase import Client
 import anthropic
 
 logger = logging.getLogger(__name__)
 
 RENTCAST_API_KEY = os.getenv("RENTCAST_API_KEY")
-ZILLOW_API_KEY = os.getenv("ZILLOW_API_KEY")  # via RapidAPI
+ZILLOW_API_KEY = os.getenv("ZILLOW_API_KEY")
 
-# ─── Property Model ───────────────────────────────────────────────────────────
+
+# ─── Property Model (flat columns from Postgres) ─────────────────────────────
 
 class RentalProperty:
     def __init__(self, data: dict):
-        self.property_id = str(data["_id"])
+        self.property_id = str(data["id"])
         self.user_id = data["user_id"]
         self.address = data["address"]
         self.purchase_price = data["purchase_price"]
         self.purchase_date = data["purchase_date"]
-        self.current_value = data.get("current_value", data["purchase_price"])
-        
-        # Mortgage
-        self.mortgage_balance = data["mortgage"]["balance"]
-        self.mortgage_rate = data["mortgage"]["rate"]
-        self.mortgage_payment = data["mortgage"]["monthly_payment"]
-        self.mortgage_remaining_months = data["mortgage"].get("remaining_months", 360)
-        
+        self.current_value = data.get("current_value") or data["purchase_price"]
+
+        # Flat mortgage columns (no nesting)
+        self.mortgage_balance = data["mortgage_balance"]
+        self.mortgage_rate = data["mortgage_rate"]
+        self.mortgage_payment = data["mortgage_monthly_payment"]
+        self.mortgage_remaining_months = data.get("mortgage_remaining_months", 360)
+
         # Income
-        self.monthly_rent = data["income"]["monthly_rent"]
-        self.lease_end_date = data["income"].get("lease_end_date")
-        
-        # Fixed expenses
-        self.insurance_monthly = data["expenses"].get("insurance", 0)
-        self.property_tax_monthly = data["expenses"].get("property_tax_monthly", 0)
-        self.hoa_monthly = data["expenses"].get("hoa", 0)
-        self.mgmt_fee_pct = data["expenses"].get("management_fee_pct", 0)
-        self.maintenance_reserve_pct = data["expenses"].get("maintenance_reserve_pct", 0.01)
-        
+        self.monthly_rent = data["monthly_rent"]
+        self.lease_end_date = data.get("lease_end_date")
+
+        # Expenses
+        self.insurance_monthly = data.get("insurance_monthly", 0) or 0
+        self.property_tax_monthly = data.get("property_tax_monthly", 0) or 0
+        self.hoa_monthly = data.get("hoa_monthly", 0) or 0
+        self.mgmt_fee_pct = data.get("management_fee_pct", 0) or 0
+        self.maintenance_reserve_pct = data.get("maintenance_reserve_pct", 0.01) or 0.01
+
         # Tax
         self.depreciation_years = 27.5
-        self.land_value_pct = data.get("land_value_pct", 0.2)  # 20% of purchase price is land (not depreciable)
+        self.land_value_pct = data.get("land_value_pct", 0.2) or 0.2
 
 
 # ─── Mortgage Amortization ────────────────────────────────────────────────────
 
 def get_monthly_pni_split(balance: float, rate: float, payment: float) -> tuple[float, float]:
-    """Returns (principal, interest) for this month's payment."""
     monthly_rate = rate / 100 / 12
     interest = round(balance * monthly_rate, 2)
     principal = round(payment - interest, 2)
@@ -62,13 +60,11 @@ def get_monthly_pni_split(balance: float, rate: float, payment: float) -> tuple[
 
 # ─── Monthly P&L Calculation ──────────────────────────────────────────────────
 
-def calculate_monthly_pnl(prop: RentalProperty, owner_income: float = 135000) -> dict:
-    """Full monthly P&L with tax context."""
-    
+def calculate_monthly_pnl(prop: RentalProperty, owner_income: float = 100000) -> dict:
     principal, interest = get_monthly_pni_split(
         prop.mortgage_balance, prop.mortgage_rate, prop.mortgage_payment
     )
-    
+
     mgmt_fee = prop.monthly_rent * prop.mgmt_fee_pct / 100
     maintenance_reserve = prop.purchase_price * prop.maintenance_reserve_pct / 12
 
@@ -80,25 +76,29 @@ def calculate_monthly_pnl(prop: RentalProperty, owner_income: float = 135000) ->
         mgmt_fee +
         maintenance_reserve
     )
-    
-    # Cash flow (actual money in/out)
+
     cash_flow = prop.monthly_rent - total_expenses
-    
-    # Annual depreciation (structure only, not land)
+
     depreciable_basis = prop.purchase_price * (1 - prop.land_value_pct)
     annual_depreciation = depreciable_basis / prop.depreciation_years
     monthly_depreciation = annual_depreciation / 12
-    
-    # Tax savings from depreciation (at owner's marginal rate)
-    marginal_rate = 0.32 if owner_income > 89075 else 0.22
+
+    if owner_income > 243725:
+        marginal_rate = 0.35
+    elif owner_income > 191950:
+        marginal_rate = 0.32
+    elif owner_income > 100525:
+        marginal_rate = 0.24
+    elif owner_income > 41775:
+        marginal_rate = 0.22
+    else:
+        marginal_rate = 0.12
     monthly_tax_savings = monthly_depreciation * marginal_rate
-    
-    # Effective loss after tax benefit
+
     effective_monthly_cost = cash_flow + monthly_tax_savings
-    
-    # Equity buildup
+
     equity = prop.current_value - prop.mortgage_balance
-    
+
     return {
         "gross_rent": prop.monthly_rent,
         "mortgage_total": prop.mortgage_payment,
@@ -122,7 +122,6 @@ def calculate_monthly_pnl(prop: RentalProperty, owner_income: float = 135000) ->
 # ─── Market Data Fetching ─────────────────────────────────────────────────────
 
 async def get_market_rent_estimate(address: str) -> dict:
-    """Get market rent estimate from Rentcast API."""
     async with httpx.AsyncClient() as client:
         resp = await client.get(
             "https://api.rentcast.io/v1/avm/rent/long-term",
@@ -140,7 +139,6 @@ async def get_market_rent_estimate(address: str) -> dict:
 
 
 async def get_property_valuation(address: str) -> dict:
-    """Get current property value estimate."""
     async with httpx.AsyncClient() as client:
         resp = await client.get(
             "https://zillow-com1.p.rapidapi.com/propertyExtendedSearch",
@@ -152,7 +150,6 @@ async def get_property_valuation(address: str) -> dict:
             timeout=10
         )
         data = resp.json()
-        # Extract Zestimate from response
         properties = data.get("props", [])
         if properties:
             return {
@@ -165,43 +162,33 @@ async def get_property_valuation(address: str) -> dict:
 # ─── Sell vs. Hold Model ──────────────────────────────────────────────────────
 
 def sell_vs_hold_analysis(prop: RentalProperty, pnl: dict, market_data: dict) -> dict:
-    """
-    Model the financial outcome of selling vs. holding.
-    Updated monthly with fresh market data.
-    """
-    # Selling scenario
     sale_price = market_data.get("zestimate") or prop.current_value
-    selling_costs = sale_price * 0.06  # 6% typical (agent + closing)
+    selling_costs = sale_price * 0.06
     capital_gains_basis = prop.purchase_price
     capital_gain = sale_price - capital_gains_basis - selling_costs
-    # Simplified cap gains tax (assume long-term 15% rate)
     cap_gains_tax = max(0, capital_gain * 0.15)
-    # Depreciation recapture (25% on accumulated depreciation)
-    years_held = (datetime.now() - prop.purchase_date).days / 365
+
+    purchase_date = prop.purchase_date
+    if isinstance(purchase_date, str):
+        purchase_date = datetime.fromisoformat(purchase_date.replace("Z", "+00:00")).replace(tzinfo=None)
+    years_held = (datetime.now() - purchase_date).days / 365
     accumulated_depreciation = (prop.purchase_price * 0.8 / 27.5) * years_held
     depreciation_recapture = accumulated_depreciation * 0.25
-    
+
     net_proceeds = sale_price - prop.mortgage_balance - selling_costs - cap_gains_tax - depreciation_recapture
-    
-    # If proceeds invested at 7% (conservative market return)
     annual_return_if_invested = net_proceeds * 0.07
-    
-    # Holding scenario
+
     annual_cash_flow = pnl["cash_flow"] * 12
     annual_tax_savings = pnl["monthly_tax_savings"] * 12
     annual_appreciation = (market_data.get("appreciation_1yr", 3.0) / 100) * prop.current_value
     annual_equity_buildup = pnl["equity_buildup_this_month"] * 12
-    
+
     total_annual_return_holding = (
-        annual_cash_flow +
-        annual_tax_savings +
-        annual_appreciation +
-        annual_equity_buildup
+        annual_cash_flow + annual_tax_savings + annual_appreciation + annual_equity_buildup
     )
-    
+
     annual_delta = total_annual_return_holding - annual_return_if_invested
-    
-    # Verdict
+
     if annual_delta > 3000:
         verdict = "HOLD"
         verdict_reason = f"Holding generates ${annual_delta:,.0f}/yr more than selling and investing proceeds."
@@ -211,7 +198,7 @@ def sell_vs_hold_analysis(prop: RentalProperty, pnl: dict, market_data: dict) ->
     else:
         verdict = "MONITOR"
         verdict_reason = f"Close call — ${abs(annual_delta):,.0f}/yr difference. Watch market conditions."
-    
+
     return {
         "verdict": verdict,
         "verdict_reason": verdict_reason,
@@ -238,14 +225,10 @@ def sell_vs_hold_analysis(prop: RentalProperty, pnl: dict, market_data: dict) ->
 # ─── AI-Powered Analysis Narrative ───────────────────────────────────────────
 
 async def generate_rental_narrative(
-    prop: RentalProperty,
-    pnl: dict,
-    market_data: dict,
-    analysis: dict
+    prop: RentalProperty, pnl: dict, market_data: dict, analysis: dict
 ) -> str:
-    """Use Claude to generate a plain-English rental analysis."""
     client = anthropic.AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-    
+
     prompt = f"""
 You are a real estate financial advisor analyzing a rental property.
 
@@ -267,25 +250,24 @@ Write a 3-4 sentence plain English summary of this property's financial performa
 Be direct. Include the most important insight and one actionable recommendation.
 Do NOT use bullet points. Write in a conversational tone as a trusted advisor would.
 """
-    
+
     response = await client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=300,
         messages=[{"role": "user", "content": prompt}]
     )
-    
+
     return response.content[0].text
 
 
 # ─── Rent Optimization Alert ──────────────────────────────────────────────────
 
-async def check_rent_optimization(prop: RentalProperty, market_data: dict, db: AsyncIOMotorClient):
-    """Alert if rent is meaningfully below market."""
+async def check_rent_optimization(prop: RentalProperty, market_data: dict):
     market_rent = market_data.get("estimate")
     if not market_rent:
         return None
-    
-    if prop.monthly_rent < market_rent * 0.92:  # >8% below market
+
+    if prop.monthly_rent < market_rent * 0.92:
         gap = market_rent - prop.monthly_rent
         annual_gap = gap * 12
         return {
@@ -305,11 +287,9 @@ async def check_rent_optimization(prop: RentalProperty, market_data: dict, db: A
 # ─── Tax Reminders ────────────────────────────────────────────────────────────
 
 def get_rental_tax_reminders(pnl: dict, owner_income: float) -> list[dict]:
-    """Generate tax-related reminders for rental owners."""
     reminders = []
     today = datetime.now()
-    
-    # Q1 Estimated tax — due April 15
+
     if today.month == 3:
         reminders.append({
             "type": "estimated_tax",
@@ -321,8 +301,7 @@ def get_rental_tax_reminders(pnl: dict, owner_income: float) -> list[dict]:
                 f"Your annual depreciation shield is worth ~${pnl['monthly_tax_savings'] * 12:,.0f} in tax savings."
             )
         })
-    
-    # Passive activity loss limit warning
+
     if owner_income > 150000:
         reminders.append({
             "type": "passive_loss_limit",
@@ -335,66 +314,68 @@ def get_rental_tax_reminders(pnl: dict, owner_income: float) -> list[dict]:
                 f"and potentially unlock more deductions this year."
             )
         })
-    
+
     return reminders
 
 
-# ─── Monthly Report Job ───────────────────────────────────────────────────────
+# ─── Monthly Report Job ──────────────────────────────────────────────────────
 
-async def run_monthly_rental_report(db: AsyncIOMotorClient):
-    """Generate and store monthly rental analysis for all properties."""
-    properties = await db.properties.find({"active": True}).to_list(None)
-    
+async def run_monthly_rental_report(sb: Client):
+    resp = sb.table("properties").select("*").eq("active", True).execute()
+    properties = resp.data or []
+
     for prop_data in properties:
         try:
             prop = RentalProperty(prop_data)
-            
+
             # Fetch market data
             market_data = await get_market_rent_estimate(prop.address)
             valuation = await get_property_valuation(prop.address)
             market_data.update(valuation)
-            
-            # Update property value in DB
+
+            # Update property value
             if valuation.get("zestimate"):
-                await db.properties.update_one(
-                    {"_id": prop_data["_id"]},
-                    {"$set": {"current_value": valuation["zestimate"]}}
-                )
+                sb.table("properties").update(
+                    {"current_value": valuation["zestimate"]}
+                ).eq("id", prop_data["id"]).execute()
                 prop.current_value = valuation["zestimate"]
-            
+
+            # Get owner income from profile
+            profile_resp = sb.table("users_profile").select("owner_income").eq("id", prop.user_id).limit(1).execute()
+            owner_income = profile_resp.data[0]["owner_income"] if profile_resp.data else 100000
+
             # Calculate P&L and analysis
-            pnl = calculate_monthly_pnl(prop)
+            pnl = calculate_monthly_pnl(prop, owner_income=owner_income)
             analysis = sell_vs_hold_analysis(prop, pnl, market_data)
             narrative = await generate_rental_narrative(prop, pnl, market_data, analysis)
-            
+
             # Store report
-            report = {
-                "property_id": str(prop_data["_id"]),
+            sb.table("rental_reports").insert({
+                "property_id": str(prop_data["id"]),
                 "user_id": prop.user_id,
                 "month": datetime.utcnow().strftime("%Y-%m"),
                 "pnl": pnl,
                 "market_data": market_data,
                 "analysis": analysis,
                 "narrative": narrative,
-                "created_at": datetime.utcnow(),
-            }
-            await db.rental_reports.insert_one(report)
-            
+                "created_at": datetime.utcnow().isoformat(),
+            }).execute()
+
             # Generate alerts
-            rent_alert = await check_rent_optimization(prop, market_data, db)
-            tax_alerts = get_rental_tax_reminders(pnl, 135000)  # TODO: get from user profile
-            
+            rent_alert = await check_rent_optimization(prop, market_data)
+            tax_alerts = get_rental_tax_reminders(pnl, owner_income)
+
             all_alerts = [a for a in [rent_alert] + tax_alerts if a]
             for alert in all_alerts:
-                await db.alerts.insert_one({
+                sb.table("alerts").insert({
                     "user_id": prop.user_id,
-                    "property_id": str(prop_data["_id"]),
+                    "property_id": str(prop_data["id"]),
                     **alert,
-                    "created_at": datetime.utcnow(),
+                    "created_at": datetime.utcnow().isoformat(),
                     "acknowledged": False,
-                })
-            
+                }).execute()
+
             logger.info(f"Rental report generated for {prop.address}")
-            
+
         except Exception as e:
             logger.error(f"Rental report failed for {prop_data.get('address')}: {e}")
