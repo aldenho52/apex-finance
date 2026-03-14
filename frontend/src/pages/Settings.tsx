@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { getSmsStatus } from "../lib/api";
@@ -20,6 +20,7 @@ export default function Settings() {
   const { user, signOut } = useAuth();
   const [smsStatus, setSmsStatus] = useState<SmsStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const hasFetched = useRef(false);
 
   const loadStatus = () => {
     getSmsStatus()
@@ -28,7 +29,11 @@ export default function Settings() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { loadStatus(); }, []);
+  useEffect(() => {
+    if (hasFetched.current) return;
+    hasFetched.current = true;
+    loadStatus();
+  }, []);
 
   const isPhoneVerified = smsStatus?.phone_verified && smsStatus?.consent_given && !smsStatus?.revoked_at;
 
@@ -36,7 +41,7 @@ export default function Settings() {
     <div style={{ fontFamily: fonts.body, background: colors.pageBg, minHeight: "100vh", color: colors.textPrimary }}>
       {/* Header */}
       <div style={{ borderBottom: `1px solid ${colors.border}`, background: colors.pageBg, position: "sticky", top: 0, zIndex: 50, padding: "0 24px", display: "flex", alignItems: "center", justifyContent: "space-between", height: 56 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", userSelect: "none" }} onClick={() => navigate("/")}>
           <StatusDot color={colors.brand} pulse />
           <span style={{ fontFamily: fonts.brand, fontWeight: 800, fontSize: 16, letterSpacing: "0.2em" }}>APEX</span>
           <span style={{ color: colors.textTertiary, fontSize: fontSizes.caption, fontWeight: 500 }}>/ PROFILE</span>

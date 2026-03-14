@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { fetchAlerts, acknowledgeAlert as ackApi } from "../lib/api";
 import type { Alert } from "../types/alerts";
 
@@ -6,6 +6,7 @@ export function useAlerts() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [criticalCount, setCriticalCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const hasFetched = useRef(false);
 
   const load = useCallback(async () => {
     try {
@@ -18,7 +19,11 @@ export function useAlerts() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (hasFetched.current) return;
+    hasFetched.current = true;
+    load();
+  }, [load]);
 
   const acknowledgeAlert = useCallback(async (alertId: number) => {
     try {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getEmailPreferences, updateEmailPreferences, previewDigest } from "../../lib/api";
 import { colors, fonts, fontSizes, radius } from "../../lib/theme";
 
@@ -17,8 +17,11 @@ export default function EmailPreferences() {
   const [saving, setSaving] = useState(false);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [previewing, setPreviewing] = useState(false);
+  const hasFetched = useRef(false);
 
   useEffect(() => {
+    if (hasFetched.current) return;
+    hasFetched.current = true;
     getEmailPreferences()
       .then((data: EmailPrefs) => setPrefs(data))
       .catch(() => {})

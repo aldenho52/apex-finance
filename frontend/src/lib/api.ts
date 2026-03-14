@@ -40,9 +40,6 @@ export const fetchAlerts = () => authFetch("/api/alerts");
 export const acknowledgeAlert = (alertId: number) =>
   authFetch(`/api/alerts/${alertId}/acknowledge`, { method: "POST" });
 
-// Rental
-export const fetchRentalSummary = () => authFetch("/api/rental");
-
 // Chat
 export const sendChatMessage = (message: string) =>
   authFetch("/api/chat", {
@@ -136,6 +133,10 @@ export const previewDigest = () =>
 export const fetchCashFlow = (period: string = "monthly") =>
   authFetch(`/api/cash-flow?period=${period}`);
 
+// Growth / Investment History
+export const fetchGrowthHistory = (period: "30d" | "12m" = "12m") =>
+  authFetch(`/api/growth/history?period=${period}`);
+
 // Learning
 export const fetchTodaysArticle = () => authFetch("/api/learning/today");
 
@@ -147,3 +148,12 @@ export const markArticleRead = (articleId: number) =>
 
 export const toggleArticleBookmark = (articleId: number) =>
   authFetch(`/api/learning/${articleId}/bookmark`, { method: "POST" });
+
+// Winning Plays
+export const fetchWinningPlays = () => authFetch("/api/plays");
+
+export const refreshWinningPlays = () =>
+  authFetch("/api/plays/refresh", { method: "POST" });
+
+export const dismissPlay = (playId: string) =>
+  authFetch(`/api/plays/${playId}/dismiss`, { method: "POST" });

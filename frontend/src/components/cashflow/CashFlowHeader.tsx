@@ -35,7 +35,8 @@ export default function CashFlowHeader({ netWorth, accountCount, totalDebt, aler
 
   const netCashFlow = data?.net_cash_flow ?? 0;
   const netColor = netCashFlow >= 0 ? colors.positive : colors.negative;
-  const statusConfig = data ? STATUS_CONFIG[data.status] : null;
+  const hasData = data && data.transaction_count > 0;
+  const statusConfig = hasData ? STATUS_CONFIG[data.status] : null;
 
   return (
     <div style={{ marginBottom: spacing.sectionGap }}>

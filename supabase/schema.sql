@@ -159,45 +159,6 @@ CREATE TABLE streaks (
     UNIQUE(user_id, type)
 );
 
--- ── Properties ──────────────────────────────────────────────────────────────
-CREATE TABLE properties (
-    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    address TEXT NOT NULL,
-    purchase_price NUMERIC NOT NULL,
-    purchase_date TIMESTAMPTZ NOT NULL,
-    current_value NUMERIC,
-    mortgage_balance NUMERIC,
-    mortgage_rate NUMERIC,
-    mortgage_monthly_payment NUMERIC,
-    mortgage_remaining_months INT,
-    monthly_rent NUMERIC,
-    lease_end_date TEXT,
-    insurance_monthly NUMERIC DEFAULT 0,
-    property_tax_monthly NUMERIC DEFAULT 0,
-    hoa_monthly NUMERIC DEFAULT 0,
-    management_fee_pct NUMERIC DEFAULT 0,
-    maintenance_reserve_pct NUMERIC DEFAULT 0.01,
-    land_value_pct NUMERIC DEFAULT 0.2,
-    active BOOLEAN DEFAULT TRUE
-);
-
-CREATE INDEX idx_properties_user ON properties(user_id);
-
--- ── Rental Reports ──────────────────────────────────────────────────────────
-CREATE TABLE rental_reports (
-    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    property_id TEXT NOT NULL,
-    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    month TEXT NOT NULL,
-    pnl JSONB,
-    market_data JSONB,
-    analysis JSONB,
-    narrative TEXT,
-    created_at TIMESTAMPTZ DEFAULT now()
-);
-
-CREATE INDEX idx_rental_reports_user ON rental_reports(user_id, created_at DESC);
 
 -- ── SMS Consent ───────────────────────────────────────────────────────────
 CREATE TABLE sms_consent (
@@ -297,6 +258,27 @@ CREATE TABLE debt_payoff_plans (
 
 CREATE INDEX idx_debt_payoff_plans_user ON debt_payoff_plans(user_id);
 
+-- ── Winning Plays (AI-generated action items) ───────────────────────────
+CREATE TABLE winning_plays (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id UUID NOT NULL UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
+    plays JSONB NOT NULL DEFAULT '[]',
+    generated_at TIMESTAMPTZ DEFAULT now(),
+    expires_at TIMESTAMPTZ DEFAULT now() + INTERVAL '24 hours'
+);
+
+CREATE INDEX idx_winning_plays_user ON winning_plays(user_id);
+
+CREATE TABLE winning_plays_dismissed (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    play_id TEXT NOT NULL,
+    dismissed_at TIMESTAMPTZ DEFAULT now(),
+    UNIQUE(user_id, play_id)
+);
+
+CREATE INDEX idx_winning_plays_dismissed_user ON winning_plays_dismissed(user_id);
+
 -- ============================================================================
 -- RLS Policies — Every table locked to the authenticated user's own data
 -- ============================================================================
@@ -311,8 +293,7 @@ ALTER TABLE payment_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE food_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE streaks ENABLE ROW LEVEL SECURITY;
-ALTER TABLE properties ENABLE ROW LEVEL SECURITY;
-ALTER TABLE rental_reports ENABLE ROW LEVEL SECURITY;
+
 ALTER TABLE sms_consent ENABLE ROW LEVEL SECURITY;
 ALTER TABLE alert_preferences ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_preferences ENABLE ROW LEVEL SECURITY;
@@ -320,6 +301,8 @@ ALTER TABLE learning_articles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE learning_progress ENABLE ROW LEVEL SECURITY;
 ALTER TABLE weekly_snapshots ENABLE ROW LEVEL SECURITY;
 ALTER TABLE debt_payoff_plans ENABLE ROW LEVEL SECURITY;
+ALTER TABLE winning_plays ENABLE ROW LEVEL SECURITY;
+ALTER TABLE winning_plays_dismissed ENABLE ROW LEVEL SECURITY;
 
 -- users_profile
 CREATE POLICY "Users can view own profile" ON users_profile FOR SELECT USING (auth.uid() = id);
@@ -363,13 +346,7 @@ CREATE POLICY "Users can manage own food logs" ON food_logs FOR ALL USING (auth.
 CREATE POLICY "Users can view own streaks" ON streaks FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Users can manage own streaks" ON streaks FOR ALL USING (auth.uid() = user_id);
 
--- properties
-CREATE POLICY "Users can view own properties" ON properties FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Users can manage own properties" ON properties FOR ALL USING (auth.uid() = user_id);
 
--- rental_reports
-CREATE POLICY "Users can view own rental reports" ON rental_reports FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Users can manage own rental reports" ON rental_reports FOR ALL USING (auth.uid() = user_id);
 
 -- sms_consent
 CREATE POLICY "Users can view own sms consent" ON sms_consent FOR SELECT USING (auth.uid() = user_id);
@@ -397,6 +374,14 @@ CREATE POLICY "Users can manage own weekly snapshots" ON weekly_snapshots FOR AL
 -- debt_payoff_plans
 CREATE POLICY "Users can view own debt payoff plans" ON debt_payoff_plans FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Users can manage own debt payoff plans" ON debt_payoff_plans FOR ALL USING (auth.uid() = user_id);
+
+-- winning_plays
+CREATE POLICY "Users can view own winning plays" ON winning_plays FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can manage own winning plays" ON winning_plays FOR ALL USING (auth.uid() = user_id);
+
+-- winning_plays_dismissed
+CREATE POLICY "Users can view own dismissed plays" ON winning_plays_dismissed FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can manage own dismissed plays" ON winning_plays_dismissed FOR ALL USING (auth.uid() = user_id);
 
 -- ============================================================================
 -- SQL Functions (replace MongoDB aggregation pipelines)

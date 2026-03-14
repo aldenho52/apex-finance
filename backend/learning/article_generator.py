@@ -1,15 +1,24 @@
-"""Generate daily learning articles using Claude."""
+"""Generate daily learning articles using OpenAI."""
 
 import os
 import json
 import logging
 from datetime import datetime
 
-import anthropic
+from openai import AsyncOpenAI
 
 from learning.curriculum import get_topic_for_date
 
 logger = logging.getLogger(__name__)
+
+_client = None
+
+
+def _get_client():
+    global _client
+    if _client is None:
+        _client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    return _client
 
 
 async def generate_daily_article(sb):
@@ -24,7 +33,7 @@ async def generate_daily_article(sb):
 
     topic_data = get_topic_for_date(today)
 
-    client = anthropic.AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+    client = _get_client()
 
     prompt = f"""Write a concise, engaging personal finance educational article.
 
@@ -49,13 +58,13 @@ Return ONLY valid JSON with exactly these fields:
     "reading_time_minutes": 3 or 4 or 5
 }}"""
 
-    response = await client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=1500,
+    response = await client.chat.completions.create(
+        model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
+        max_tokens=1500,
     )
 
-    text = response.content[0].text.strip()
+    text = response.choices[0].message.content.strip()
     # Strip markdown code fences if present
     if text.startswith("```"):
         text = text.split("\n", 1)[1] if "\n" in text else text[3:]

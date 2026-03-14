@@ -10,7 +10,7 @@ import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Request
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -27,7 +27,7 @@ from plaid_mod.plaid_client import (
     sync_transactions,
 )
 from alerts.alert_engine import run_nightly_alert_job, evaluate_payment_alerts
-from rental.rental_intelligence import run_monthly_rental_report
+
 from ai.assistant import chat, generate_daily_brief
 from sms.sms_service import (
     send_verification_code,
@@ -49,6 +49,7 @@ from compensation.salary_tracker import (
     TARGET_SALARY,
 )
 from cashflow.cash_flow import get_cash_flow_summary
+from plays.winning_plays import get_winning_plays, dismiss_play as dismiss_winning_play
 
 logger = logging.getLogger(__name__)
 
@@ -70,14 +71,6 @@ async def lifespan(app: FastAPI):
         minute=0,
     )
 
-    # Monthly rental report — 1st of each month
-    scheduler.add_job(
-        lambda: asyncio.create_task(run_monthly_rental_report(sb)),
-        "cron",
-        day=1,
-        hour=6,
-        minute=0,
-    )
 
     # Weekly email digest — Sunday 9am
     scheduler.add_job(
@@ -329,37 +322,6 @@ async def run_alerts_now(
     alerts = await evaluate_payment_alerts(user_id, sb)
     return {"alerts_generated": len(alerts)}
 
-
-# ─── Rental Routes ────────────────────────────────────────────────────────────
-
-
-@app.get("/api/rental")
-async def get_rental_summary(
-    user_id: str = Depends(get_current_user),
-    sb=Depends(get_supabase),
-):
-    resp = (
-        sb.table("rental_reports")
-        .select("*")
-        .eq("user_id", user_id)
-        .order("created_at", desc=True)
-        .limit(1)
-        .execute()
-    )
-    reports = resp.data or []
-    if not reports:
-        raise HTTPException(404, "No rental report found. Run monthly job first.")
-    return reports[0]
-
-
-@app.post("/api/rental/refresh")
-async def refresh_rental_report(
-    background_tasks: BackgroundTasks,
-    user_id: str = Depends(get_current_user),
-    sb=Depends(get_supabase),
-):
-    background_tasks.add_task(run_monthly_rental_report, sb)
-    return {"status": "refresh_started"}
 
 
 # ─── AI Chat Routes ───────────────────────────────────────────────────────────
@@ -628,16 +590,20 @@ async def get_email_prefs(
     user_id: str = Depends(get_current_user),
     sb=Depends(get_supabase),
 ):
-    resp = (
-        sb.table("email_preferences")
-        .select("digest_enabled, digest_day, digest_hour, email_override, last_digest_sent_at")
-        .eq("user_id", user_id)
-        .limit(1)
-        .execute()
-    )
-    if resp.data:
-        return resp.data[0]
-    return {"digest_enabled": True, "digest_day": "sunday", "digest_hour": 9, "email_override": None, "last_digest_sent_at": None}
+    default = {"digest_enabled": True, "digest_day": "sunday", "digest_hour": 9, "email_override": None, "last_digest_sent_at": None}
+    try:
+        resp = (
+            sb.table("email_preferences")
+            .select("digest_enabled, digest_day, digest_hour, email_override, last_digest_sent_at")
+            .eq("user_id", user_id)
+            .limit(1)
+            .execute()
+        )
+        if resp.data:
+            return resp.data[0]
+    except Exception as e:
+        logger.error(f"Failed to fetch email preferences: {e}")
+    return default
 
 
 @app.put("/api/settings/email-preferences")
@@ -646,17 +612,21 @@ async def update_email_prefs(
     user_id: str = Depends(get_current_user),
     sb=Depends(get_supabase),
 ):
-    sb.table("email_preferences").upsert(
-        {
-            "user_id": user_id,
-            "digest_enabled": body.digest_enabled,
-            "digest_day": body.digest_day,
-            "digest_hour": body.digest_hour,
-            "updated_at": datetime.utcnow().isoformat(),
-        },
-        on_conflict="user_id",
-    ).execute()
-    return {"status": "updated"}
+    try:
+        sb.table("email_preferences").upsert(
+            {
+                "user_id": user_id,
+                "digest_enabled": body.digest_enabled,
+                "digest_day": body.digest_day,
+                "digest_hour": body.digest_hour,
+                "updated_at": datetime.utcnow().isoformat(),
+            },
+            on_conflict="user_id",
+        ).execute()
+        return {"status": "updated"}
+    except Exception as e:
+        logger.error(f"Failed to update email preferences: {e}")
+        raise HTTPException(500, "Failed to update email preferences")
 
 
 @app.post("/api/settings/email-preview")
@@ -665,10 +635,14 @@ async def preview_digest(
     sb=Depends(get_supabase),
 ):
     """Generate a preview of the weekly digest without sending."""
-    digest_data = await gather_digest_data(user_id, sb)
-    ai_insight = await generate_ai_insight(digest_data)
-    html = render_digest_html(digest_data, ai_insight)
-    return {"html": html, "data": digest_data, "insight": ai_insight}
+    try:
+        digest_data = await gather_digest_data(user_id, sb)
+        ai_insight = await generate_ai_insight(digest_data)
+        html = render_digest_html(digest_data, ai_insight)
+        return {"html": html, "data": digest_data, "insight": ai_insight}
+    except Exception as e:
+        logger.error(f"Failed to generate email preview: {e}")
+        raise HTTPException(500, "Failed to generate email preview")
 
 
 # ─── Learning Routes ──────────────────────────────────────────────────────
@@ -711,7 +685,7 @@ async def get_todays_article(
 async def get_article_archive(
     user_id: str = Depends(get_current_user),
     sb=Depends(get_supabase),
-    limit: int = 7,
+    limit: int = Query(default=7, le=50),
 ):
     resp = (
         sb.table("learning_articles")
@@ -874,6 +848,12 @@ class DebtPayoffRequest(BaseModel):
     extra_monthly_payment: float = 0
 
 
+class SavePayoffPlanRequest(BaseModel):
+    strategy: str
+    extra_monthly_payment: float
+    snapshot: dict = {}
+
+
 @app.post("/api/debt/payoff-calculator")
 async def calculate_payoff(
     body: DebtPayoffRequest,
@@ -901,16 +881,16 @@ async def calculate_payoff(
 
 @app.post("/api/debt/save-plan")
 async def save_payoff_plan(
-    body: dict,
+    body: SavePayoffPlanRequest,
     user_id: str = Depends(get_current_user),
     sb=Depends(get_supabase),
 ):
     sb.table("debt_payoff_plans").upsert(
         {
             "user_id": user_id,
-            "strategy": body["strategy"],
-            "extra_monthly_payment": body["extra_monthly_payment"],
-            "snapshot": body.get("snapshot", {}),
+            "strategy": body.strategy,
+            "extra_monthly_payment": body.extra_monthly_payment,
+            "snapshot": body.snapshot,
             "created_at": datetime.utcnow().isoformat(),
         },
         on_conflict="user_id,strategy",
@@ -1034,6 +1014,117 @@ async def seed_alert_data(
         "alerts_generated": len(alerts),
         "details": seeded,
     }
+
+
+# ─── Growth / Investment History Routes ───────────────────────────────────────
+
+
+@app.get("/api/growth/history")
+async def get_growth_history(
+    period: str = "12m",
+    user_id: str = Depends(get_current_user),
+    sb=Depends(get_supabase),
+):
+    """Return balance snapshots for the streak projector.
+
+    Uses weekly_snapshots for net_worth over time plus transaction data to
+    estimate contributions (deposits into depository/investment accounts).
+    """
+    if period not in ("30d", "12m"):
+        raise HTTPException(400, "Period must be '30d' or '12m'")
+
+    if period == "30d":
+        cutoff = (datetime.utcnow() - timedelta(days=30)).strftime("%Y-%m-%d")
+    else:
+        cutoff = (datetime.utcnow() - timedelta(days=365)).strftime("%Y-%m-%d")
+
+    # Get weekly snapshots in range
+    snap_resp = (
+        sb.table("weekly_snapshots")
+        .select("week_start, net_worth")
+        .eq("user_id", user_id)
+        .gte("week_start", cutoff)
+        .order("week_start")
+        .execute()
+    )
+    snapshots = snap_resp.data or []
+
+    # Get deposit transactions (negative amounts in Plaid = money coming in)
+    # for investment and depository accounts
+    acct_resp = (
+        sb.table("accounts")
+        .select("plaid_account_id, type")
+        .eq("user_id", user_id)
+        .in_("type", ["depository", "investment"])
+        .execute()
+    )
+    asset_account_ids = [a["plaid_account_id"] for a in (acct_resp.data or [])]
+
+    contribution_by_week: dict[str, float] = {}
+    if asset_account_ids:
+        txn_resp = (
+            sb.table("transactions")
+            .select("date, amount, account_id")
+            .eq("user_id", user_id)
+            .in_("account_id", asset_account_ids)
+            .gte("date", cutoff)
+            .lt("amount", 0)  # Plaid: negative = inflow
+            .order("date")
+            .execute()
+        )
+        for txn in txn_resp.data or []:
+            # Bucket by ISO week start (Monday)
+            d = datetime.strptime(txn["date"], "%Y-%m-%d")
+            week_start = (d - timedelta(days=d.weekday())).strftime("%Y-%m-%d")
+            contribution_by_week[week_start] = (
+                contribution_by_week.get(week_start, 0) + abs(txn["amount"])
+            )
+
+    # Build response snapshots
+    result = []
+    for snap in snapshots:
+        ws = snap["week_start"]
+        result.append(
+            {
+                "date": ws,
+                "balance": round(float(snap["net_worth"] or 0), 2),
+                "contributed": round(contribution_by_week.get(ws, 0), 2),
+            }
+        )
+
+    return {"snapshots": result, "period": period}
+
+
+# ─── Winning Plays Routes ────────────────────────────────────────────────────
+
+
+@app.get("/api/plays")
+async def get_plays(
+    user_id: str = Depends(get_current_user),
+    sb=Depends(get_supabase),
+):
+    plays = await get_winning_plays(user_id, sb)
+    return {"plays": plays, "count": len(plays)}
+
+
+@app.post("/api/plays/refresh")
+@limiter.limit("3/minute")
+async def refresh_plays(
+    request: Request,
+    user_id: str = Depends(get_current_user),
+    sb=Depends(get_supabase),
+):
+    plays = await get_winning_plays(user_id, sb, force_refresh=True)
+    return {"plays": plays, "count": len(plays)}
+
+
+@app.post("/api/plays/{play_id}/dismiss")
+async def dismiss_play_endpoint(
+    play_id: str,
+    user_id: str = Depends(get_current_user),
+    sb=Depends(get_supabase),
+):
+    return await dismiss_winning_play(user_id, play_id, sb)
 
 
 # ─── Tax Calculator Routes ────────────────────────────────────────────────────

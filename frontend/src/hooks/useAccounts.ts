@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { fetchAccounts } from "../lib/api";
 import type { Account } from "../types/accounts";
 
@@ -6,6 +6,7 @@ export function useAccounts() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [netWorth, setNetWorth] = useState(0);
   const [loading, setLoading] = useState(true);
+  const hasFetched = useRef(false);
 
   const load = useCallback(async () => {
     try {
@@ -18,7 +19,11 @@ export function useAccounts() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (hasFetched.current) return;
+    hasFetched.current = true;
+    load();
+  }, [load]);
 
   return { accounts, netWorth, loading, refresh: load };
 }

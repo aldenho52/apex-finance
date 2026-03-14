@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { fetchDebtOverview, calculatePayoff, fetchBalanceTransferAnalysis } from "../lib/api";
 import type { DebtOverview, PayoffComparison, BalanceTransferAnalysis } from "../types/debt";
 
@@ -9,8 +9,11 @@ export function useDebtData() {
   const [extraPayment, setExtraPayment] = useState(200);
   const [loading, setLoading] = useState(true);
   const [calculating, setCalculating] = useState(false);
+  const hasFetched = useRef(false);
 
   useEffect(() => {
+    if (hasFetched.current) return;
+    hasFetched.current = true;
     async function load() {
       try {
         const [debtData, btData] = await Promise.allSettled([

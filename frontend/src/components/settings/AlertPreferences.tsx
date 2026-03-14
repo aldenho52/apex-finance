@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getAlertPreferences, updateAlertPreferences } from "../../lib/api";
 import { colors, fonts, fontSizes, radius } from "../../lib/theme";
 
@@ -19,8 +19,11 @@ export default function AlertPreferences() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const hasFetched = useRef(false);
 
   useEffect(() => {
+    if (hasFetched.current) return;
+    hasFetched.current = true;
     getAlertPreferences()
       .then(data => setPrefs(data))
       .catch(() => {})

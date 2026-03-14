@@ -3,19 +3,30 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "./contexts/AuthContext";
 import { useAccounts } from "./hooks/useAccounts";
 import { useAlerts } from "./hooks/useAlerts";
-import { fetchRentalSummary } from "./lib/api";
+
 import { colors, fonts, fontSizes, spacing, radius } from "./lib/theme";
 import StatusDot from "./components/ui/StatusDot";
 import AlertsTab from "./components/alerts/AlertsTab";
 import AccountsTab from "./components/accounts/AccountsTab";
-import RentalTab from "./components/rental/RentalTab";
+
 import DebtTab from "./components/debt/DebtTab";
 import CashFlowHeader from "./components/cashflow/CashFlowHeader";
 import LearningTab from "./components/learning/LearningTab";
+import GrowthTab from "./components/growth/GrowthTab";
+import WinningPlaysTab from "./components/plays/WinningPlaysTab";
 import AiChat from "./components/chat/AiChat";
 import PlaidLinkButton from "./components/PlaidLink";
 
-const TABS = ["alerts", "accounts", "debt", "rental", "learn"] as const;
+const TABS = ["alerts", "accounts", "debt", "plays", "growth", "learn"] as const;
+
+const TAB_LABELS: Record<string, string> = {
+  alerts: "ALERTS",
+  accounts: "ACCOUNTS",
+  debt: "DEBT",
+  plays: "PLAYS",
+  growth: "GROWTH",
+  learn: "LEARN",
+};
 
 export default function Dashboard() {
   const { signOut } = useAuth();
@@ -23,13 +34,7 @@ export default function Dashboard() {
   const { accounts, netWorth, loading: accountsLoading, refresh: refreshAccounts } = useAccounts();
   const { alerts, criticalCount, acknowledgeAlert, refresh: refreshAlerts } = useAlerts();
   const [tab, setTab] = useState<string>("alerts");
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [rental, setRental] = useState<any>(null);
   const [lastUpdated, setLastUpdated] = useState("just now");
-
-  useEffect(() => {
-    fetchRentalSummary().then(setRental).catch(() => {});
-  }, []);
 
   const handleBankConnected = () => {
     refreshAccounts();
@@ -107,7 +112,7 @@ export default function Dashboard() {
             <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
               {TABS.map(t => (
                 <button key={t} style={tabStyle(t)} onClick={() => setTab(t)}>
-                  {t.toUpperCase()}{t === "alerts" && criticalCount > 0 ? ` (${criticalCount})` : ""}
+                  {TAB_LABELS[t] || t.toUpperCase()}{t === "alerts" && criticalCount > 0 ? ` (${criticalCount})` : ""}
                 </button>
               ))}
             </div>
@@ -117,7 +122,8 @@ export default function Dashboard() {
               {tab === "alerts" && <AlertsTab alerts={alerts} onAcknowledge={acknowledgeAlert} />}
               {tab === "accounts" && <AccountsTab accounts={accounts} onBankConnected={handleBankConnected} />}
               {tab === "debt" && <DebtTab />}
-              {tab === "rental" && <RentalTab rental={rental} />}
+              {tab === "plays" && <WinningPlaysTab />}
+              {tab === "growth" && <GrowthTab />}
               {tab === "learn" && <LearningTab />}
             </div>
           </div>

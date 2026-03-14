@@ -2,7 +2,7 @@ fastapi==0.115.6
 uvicorn[standard]==0.34.0
 pydantic==2.10.4
 plaid-python==27.0.0
-anthropic==0.42.0
+openai==1.30.0
 twilio==9.4.3
 httpx==0.28.1
 apscheduler==3.11.0

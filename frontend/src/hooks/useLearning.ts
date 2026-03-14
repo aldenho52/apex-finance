@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { fetchTodaysArticle, fetchArticleArchive, markArticleRead, toggleArticleBookmark } from "../lib/api";
 import type { LearningArticle, ArticleListItem } from "../types/learning";
 
@@ -6,6 +6,7 @@ export function useLearning() {
   const [todaysArticle, setTodaysArticle] = useState<LearningArticle | null>(null);
   const [archive, setArchive] = useState<ArticleListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const hasFetched = useRef(false);
 
   const load = useCallback(async () => {
     try {
@@ -21,7 +22,11 @@ export function useLearning() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (hasFetched.current) return;
+    hasFetched.current = true;
+    load();
+  }, [load]);
 
   const handleMarkRead = useCallback(async (articleId: number) => {
     await markArticleRead(articleId);

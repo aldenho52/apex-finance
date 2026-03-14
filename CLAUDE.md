@@ -36,6 +36,15 @@ supabase/
 
 ---
 
+## UI/UX Design
+
+- **Read `DESIGN.md` before any frontend/UI work.** It contains the full design system — visual hierarchy, color, typography, component patterns, responsive rules, and anti-patterns.
+- **Design tokens live in `src/lib/theme.ts`.** Always use token constants (`colors`, `fonts`, `fontSizes`, `spacing`, `radius`) — never hardcode values.
+- **Premium fintech aesthetic.** Think Linear, Mercury, Arc — not Bootstrap. Dark theme only, semantic colors, data-dense layouts.
+- **Use color for meaning, not decoration.** Green = positive/growth, red = negative/alert, yellow = warning, blue = info. No random accents.
+
+---
+
 ## Frontend Rules
 
 ### Component Architecture
@@ -129,3 +138,4 @@ supabase/
 - Never include "Generated with Claude Code" or co-author lines.
 - Commit messages: imperative mood, concise, explain the "why".
 - Don't commit `.env`, credentials, or large binaries.
+e 

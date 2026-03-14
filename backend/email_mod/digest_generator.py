@@ -6,7 +6,7 @@ import os
 import logging
 from datetime import datetime, timedelta
 
-import anthropic
+from openai import AsyncOpenAI
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,6 @@ async def gather_digest_data(user_id: str, sb) -> dict:
     today = datetime.utcnow()
     week_ago = (today - timedelta(days=7)).strftime("%Y-%m-%d")
 
-    # Current accounts + net worth
     accounts_resp = sb.table("accounts").select("*").eq("user_id", user_id).execute()
     accounts = accounts_resp.data or []
 
@@ -29,7 +28,6 @@ async def gather_digest_data(user_id: str, sb) -> dict:
         for a in accounts
     )
 
-    # Previous week snapshot for comparison
     prev_week_start = (today - timedelta(days=14)).strftime("%Y-%m-%d")
     prev_resp = (
         sb.table("weekly_snapshots")
@@ -42,7 +40,6 @@ async def gather_digest_data(user_id: str, sb) -> dict:
     )
     prev_snapshot = prev_resp.data[0] if prev_resp.data else None
 
-    # This week's transactions
     txn_resp = (
         sb.table("transactions")
         .select("amount, merchant_name, category, date")
@@ -53,7 +50,6 @@ async def gather_digest_data(user_id: str, sb) -> dict:
     transactions = txn_resp.data or []
     total_spending = sum(t["amount"] for t in transactions if t["amount"] > 0)
 
-    # Top spending categories
     category_totals: dict[str, float] = {}
     for t in transactions:
         if t["amount"] > 0:
@@ -62,7 +58,6 @@ async def gather_digest_data(user_id: str, sb) -> dict:
             category_totals[cat] = category_totals.get(cat, 0) + t["amount"]
     top_categories = sorted(category_totals.items(), key=lambda x: x[1], reverse=True)[:5]
 
-    # Upcoming alerts
     alerts_resp = (
         sb.table("alerts")
         .select("severity, title, message, due_date")
@@ -73,19 +68,7 @@ async def gather_digest_data(user_id: str, sb) -> dict:
         .execute()
     )
 
-    # Total debt
     total_debt = sum(abs(a["balance_current"]) for a in accounts if a["type"] in liability_types)
-
-    # Rental data
-    rental_resp = (
-        sb.table("rental_reports")
-        .select("pnl, analysis")
-        .eq("user_id", user_id)
-        .order("created_at", desc=True)
-        .limit(1)
-        .execute()
-    )
-    rental = rental_resp.data[0] if rental_resp.data else None
 
     return {
         "net_worth": round(net_worth, 2),
@@ -94,7 +77,6 @@ async def gather_digest_data(user_id: str, sb) -> dict:
         "total_spending": round(total_spending, 2),
         "top_categories": top_categories,
         "alerts": alerts_resp.data or [],
-        "rental": rental,
         "accounts_count": len(accounts),
         "transaction_count": len(transactions),
     }
@@ -102,7 +84,7 @@ async def gather_digest_data(user_id: str, sb) -> dict:
 
 async def generate_ai_insight(digest_data: dict) -> str:
     """Generate a single AI-powered insight for the digest."""
-    client = anthropic.AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+    client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
     nw_prev = digest_data.get("net_worth_prev")
     nw_str = f"${nw_prev:,.0f}" if nw_prev else "N/A"
@@ -117,12 +99,12 @@ async def generate_ai_insight(digest_data: dict) -> str:
         f"Active alerts: {len(digest_data['alerts'])}"
     )
 
-    response = await client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=150,
+    response = await client.chat.completions.create(
+        model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
+        max_tokens=150,
     )
-    return response.content[0].text
+    return response.choices[0].message.content
 
 
 def render_digest_html(digest_data: dict, ai_insight: str) -> str:
@@ -136,7 +118,6 @@ def render_digest_html(digest_data: dict, ai_insight: str) -> str:
         color = "#22c55e" if diff >= 0 else "#ef4444"
         nw_change = f'<span style="color:{color};font-size:14px">({direction}${diff:,.0f})</span>'
 
-    # Category rows
     cat_rows = ""
     for cat, amount in digest_data["top_categories"]:
         cat_rows += (
@@ -145,7 +126,6 @@ def render_digest_html(digest_data: dict, ai_insight: str) -> str:
             f'${amount:,.2f}</td></tr>'
         )
 
-    # Alert rows
     alert_rows = ""
     sev_colors = {"critical": "#ef4444", "warning": "#f59e0b", "info": "#60a5fa"}
     for a in digest_data["alerts"][:3]:
