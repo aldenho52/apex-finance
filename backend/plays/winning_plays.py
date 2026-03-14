@@ -27,7 +27,7 @@ def _get_client():
     return _client
 
 
-MODEL = "gpt-4o-mini"
+MODEL = "gpt-4.1-mini"
 
 PLAYS_PROMPT = """You are a sharp financial advisor inside the APEX personal finance app.
 Analyze this user's REAL financial data and generate 5-7 specific, actionable financial moves they should make THIS WEEK.

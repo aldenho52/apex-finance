@@ -24,7 +24,7 @@ def _get_client():
     return _client
 
 
-MODEL = "gpt-4o-mini"
+MODEL = "gpt-4.1-mini"
 
 SYSTEM_PROMPT = """You are APEX, a personal finance AI assistant. You have real-time access to the user's financial data.
 

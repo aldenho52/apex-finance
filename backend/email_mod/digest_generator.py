@@ -100,7 +100,7 @@ async def generate_ai_insight(digest_data: dict) -> str:
     )
 
     response = await client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-4.1-mini",
         messages=[{"role": "user", "content": prompt}],
         max_tokens=150,
     )
